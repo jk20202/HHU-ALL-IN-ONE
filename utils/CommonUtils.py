@@ -1,5 +1,6 @@
 # coding: utf-8
 import subprocess
+import time
 from functools import partial
 subprocess.Popen = partial(subprocess.Popen, encoding="utf-8")
 import execjs
@@ -29,3 +30,8 @@ def generateVisitpwdDefaultEncrypt(xy, key):
 def generateGraduatepwdDefaultEncrypt(encryStr):
     return GraduateJS.call("getDAesString", encryStr)
 
+def get_current_data():
+    return time.strftime('%Y-%m-%d', time.localtime(time.time()))
+
+def get_next_data():
+    return time.strftime('%Y-%m-%d', time.localtime(time.time() + 24 * 60 * 60))

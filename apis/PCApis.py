@@ -1,3 +1,4 @@
+import json
 import re
 import time
 import requests
@@ -387,13 +388,9 @@ class HHUPCApis():
             "Accept-Language": "zh-CN,zh;q=0.9"
         }
         response = session.get(redirectUrl, headers=headers)
-        access_token = response.cookies["access_token"]
-        return {
-            'session': session,
-            'access_token': access_token
-        }
+        return session
 
-    def getUserInfo(self, access_token):
+    def getUserInfo(self, session):
         headers = {
             "Host": "my.hhu.edu.cn",
             "sec-ch-ua": "\"Chromium\";v=\"128\", \"Not;A=Brand\";v=\"24\", \"Microsoft Edge\";v=\"128\"",
@@ -411,7 +408,7 @@ class HHUPCApis():
         url = "https://my.hhu.edu.cn/portal-web/api/proxy/interface/api/rest/v1/personalInterface/getUserInfo"
         params = {
             "t": str(int(time.time() * 1000)),
-            "access_token": access_token
+            "access_token": session.cookies["access_token"]
         }
         response = session.get(url, headers=headers, params=params)
         res_json = response.json()
@@ -422,8 +419,8 @@ if __name__ == '__main__':
     password = 'github.com/cv-cat'
 
     hhuPCApis = HHUPCApis()
-    res = hhuPCApis.getPCSession(username, password)
-    session, access_token = res['session'], res['access_token']
-    res = hhuPCApis.getUserInfo(access_token)
-    print(res)
+    session = hhuPCApis.getPCSession(username, password)
+    print(session)
+    res = hhuPCApis.getUserInfo(session)
+    print(json.dumps(res, ensure_ascii=False, indent=4))
 
