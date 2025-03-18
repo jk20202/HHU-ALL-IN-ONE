@@ -20,11 +20,6 @@
 ## 🎨效果图
 ### 生成属于你的永久门禁二维码！ https://cvcat.site/hhu （闸机较小、请缩放二维码）
 ![image](https://github.com/user-attachments/assets/a1276a47-3ad7-41ed-85e0-038f1ae4fbf0)
-### 场馆预约 支持企微/Lark webhook
-![image](https://github.com/user-attachments/assets/a237761e-70ce-49cb-bdc3-51aba5d46bcf)
-
-![image](https://github.com/user-attachments/assets/e6a772a6-4b94-4cd9-95ed-98703030e84b)
-
 
 ## ⛳运行环境
 Python环境>=3.7
