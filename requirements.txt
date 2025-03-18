@@ -1,0 +1,7 @@
+uuid
+pillow
+PyExecJS
+ddddocr
+requests
+mitmproxy
+loguru
