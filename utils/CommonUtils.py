@@ -20,6 +20,14 @@ try:
 except:
     GraduateJS = execjs.compile(open(r'static/hhuGraduatePC.js', 'r', encoding='utf-8').read())
 
+try:
+    FingerJS = execjs.compile(open(r'../static/finger.js', 'r', encoding='utf-8').read())
+except:
+    FingerJS = execjs.compile(open(r'static/finger.js', 'r', encoding='utf-8').read())
+
+
+def generateFingerPrint():
+    return FingerJS.call("generateFingerPrint")
 
 def generatePCpwdDefaultEncrypt(password, salt):
     return PCJS.call("encryptAES", password, salt)
@@ -35,3 +43,8 @@ def get_current_data():
 
 def get_next_data():
     return time.strftime('%Y-%m-%d', time.localtime(time.time() + 24 * 60 * 60))
+
+if __name__ == '__main__':
+    print(generatePCpwdDefaultEncrypt("1", "2"))
+    print(get_next_data())
+    print(generateFingerPrint())

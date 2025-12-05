@@ -2,12 +2,15 @@ import re
 import json
 import time
 import requests
+
+from apis.PCApis import HHUPCApis
 from utils.CommonUtils import generatePCpwdDefaultEncrypt
 
 # HHU小程序智慧河海接口
 # 河海大学门禁小程序接口
 class HHUWXWisdomHohaiApis():
     def __init__(self):
+        self.pcApi = HHUPCApis()
         self.cookies = {
             "tenantId": "1"
         }
@@ -59,8 +62,6 @@ class HHUWXWisdomHohaiApis():
             "Sec-Fetch-Dest": "document",
             "Accept-Language": "zh-CN,zh;q=0.9"
         }
-
-        url = "https://authserver.hhu.edu.cn/authserver/weixinQYLogin.do"
         response = session.get(redirectUrl, headers=headers, allow_redirects=False)
         redirectUrl = response.headers['Location']
 
@@ -105,8 +106,11 @@ class HHUWXWisdomHohaiApis():
         }
         response = session.get(url, headers=headers, params=params)
         res_text = response.text
-        lt = re.findall(r'name="lt" value="(.*?)"', res_text)[0]
-        pwdDefaultEncryptSalt = re.findall(r'id="pwdDefaultEncryptSalt" value="(.*?)"', res_text)[0]
+        # lt = re.findall(r'name="lt" value="(.*?)"', res_text)[0]
+        # pwdDefaultEncryptSalt = re.findall(r'id="pwdDefaultEncryptSalt" value="(.*?)"', res_text)[0]
+        # pwdDefaultEncrypt = generatePCpwdDefaultEncrypt(password, pwdDefaultEncryptSalt)
+        execution = re.findall(r'type="hidden" name="execution" value="(.*?)"', res_text)[0]
+        pwdDefaultEncryptSalt = re.findall(r'id="pwdEncryptSalt" value="(.*?)"', res_text)[0]
         pwdDefaultEncrypt = generatePCpwdDefaultEncrypt(password, pwdDefaultEncryptSalt)
 
         headers = {
@@ -185,11 +189,12 @@ class HHUWXWisdomHohaiApis():
         data = {
             "username": username,
             "password": pwdDefaultEncrypt,
-            "lt": lt,
-            "dllt": "userNamePasswordLogin",
-            "execution": "e2s1",
+            "captcha": "",
             "_eventId": "submit",
-            "rmShown": "1"
+            "cllt": "userNameLogin",
+            "dllt": "generalLogin",
+            "lt": "",
+            "execution": execution
         }
         response = session.post(url, headers=headers, params=params, data=data, allow_redirects=False)
         redirectUrl = response.headers['Location']
@@ -276,6 +281,7 @@ class HHUWXWisdomHohaiApis():
     def getWXUserInfo(self, access_token):
         headers = self.getCommonHeaders(access_token)
         url = "https://zhjc.hhu.edu.cn/admin/accessPerson/mobile/loginUserBaseInfo"
+        print(self.cookies)
         response = requests.get(url, headers=headers, cookies=self.cookies)
         res_json = response.json()
         return res_json
@@ -299,7 +305,7 @@ class HHUWXWisdomHohaiApis():
 if __name__ == '__main__':
     # 学号和密码
     username = '231607010123'
-    password = 'github.com/cv-cat'
+    password = 'github@cv-cat'
     hhuWXWisdomHohaiApis = HHUWXWisdomHohaiApis()
     res = hhuWXWisdomHohaiApis.getWXSession(username, password)
     access_token = res['access_token']

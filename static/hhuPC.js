@@ -1,38 +1,28 @@
 const CryptoJS = require('crypto-js');
-function _gas(data, key0, iv0) {
-    key0 = key0.replace(/(^\s+)|(\s+$)/g, "");
-    var key = CryptoJS.enc.Utf8.parse(key0);
-    var iv = CryptoJS.enc.Utf8.parse(iv0);
-    var encrypted = CryptoJS.AES.encrypt(data, key, {
-        iv: iv,
+
+function getAesString(n, f, c) {
+    f = f.replace(/(^\s+)|(\s+$)/g, "");
+    f = CryptoJS.enc.Utf8.parse(f);
+    c = CryptoJS.enc.Utf8.parse(c);
+    return CryptoJS.AES.encrypt(n, f, {
+        iv: c,
         mode: CryptoJS.mode.CBC,
         padding: CryptoJS.pad.Pkcs7
-    });
-    return encrypted.toString();
+    }).toString()
 }
-function encryptAES(data, _p1) {
-    if (!_p1) {
-        return data;
-    }
-    var encrypted = _gas(_rds(64) + data, _p1, _rds(16));
-    return encrypted;
+function encryptAES(n, f) {
+    return f ? getAesString(randomString(64) + n, f, randomString(16)) : n
 }
-function _ep(p0, p1) {
-    try {
-        return encryptAES(p0, p1);
-    } catch (e) {}
-    return p0;
+
+var $aes_chars = "ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678"
+  , aes_chars_len = $aes_chars.length;
+function randomString(n) {
+    var f = "";
+    for (i = 0; i < n; i++)
+        f += $aes_chars.charAt(Math.floor(Math.random() * aes_chars_len));
+    return f
 }
-var $_chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';
-var _chars_len = $_chars.length;
-function _rds(len) {
-    var retStr = '';
-    for (i = 0; i < len; i++) {
-        retStr += $_chars.charAt(Math.floor(Math.random() * _chars_len));
-    }
-    return retStr;
-}
-// let data = '11'
-// let _p1 = 'WiCPBi4tV2iHaMZi'
+// let data = 'github@cv-cat'
+// let _p1 = '5wXdftSiqe1PbzYe'
 // let res = encryptAES(data, _p1)
 // console.log(res)

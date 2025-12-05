@@ -13,7 +13,8 @@ def response(flow: http.HTTPFlow) -> None:
         logger.info(data)
         data_list = data['data']['list']
         for i in range(len(data_list)):
-            slotInfo = data_list[i]['slotInfo']
+            slotInfo = data_list[i]['slotInfo'] if 'slotInfo' in data_list[i] else []
+            slotInfo = slotInfo if isinstance(slotInfo, list) else []
             for j in range(len(slotInfo)):
                 slotInfo[j]['status'] = 0
             data_list[i]['status'] = 0

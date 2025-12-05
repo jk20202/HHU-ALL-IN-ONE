@@ -2,7 +2,7 @@ import json
 import re
 import time
 import requests
-from utils.CommonUtils import generatePCpwdDefaultEncrypt
+from utils.CommonUtils import generatePCpwdDefaultEncrypt, generateFingerPrint
 
 
 # HHU官网 APIs
@@ -13,6 +13,7 @@ class HHUPCApis():
 
     def getPCSession(self, username, password):
         session = requests.Session()
+
         headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "Accept-Language": "zh-CN,zh;q=0.9",
@@ -24,28 +25,62 @@ class HHUPCApis():
             "Sec-Fetch-Site": "none",
             "Sec-Fetch-User": "?1",
             "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0",
-            "sec-ch-ua": "\"Chromium\";v=\"128\", \"Not;A=Brand\";v=\"24\", \"Microsoft Edge\";v=\"128\"",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": "\"Windows\""
         }
         url = "https://authserver.hhu.edu.cn/authserver/login"
-        params = {
-            "service": "https://my.hhu.edu.cn/portal-web/j_spring_cas_security_check"
-        }
-        response = session.get(url, headers=headers, params=params)
+        response = session.get(url, headers=headers)
+
         session.cookies.update({
             'org.springframework.web.servlet.i18n.CookieLocaleResolver.LOCALE': 'zh_CN'
         })
-        del headers["Sec-Fetch-User"]
-        headers["Referer"] = "https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check"
-        params = {
-            "service": "https://my.hhu.edu.cn/portal-web/j_spring_cas_security_check"
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Pragma": "no-cache",
+            "Referer": "https://authserver.hhu.edu.cn/authserver/login",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\""
         }
-        response = session.get(url, headers=headers, params=params)
+        url = "https://authserver.hhu.edu.cn/authserver/login"
+        response = session.get(url, headers=headers)
         res_text = response.text
-        lt = re.findall(r'name="lt" value="(.*?)"', res_text)[0]
-        pwdDefaultEncryptSalt = re.findall(r'id="pwdDefaultEncryptSalt" value="(.*?)"', res_text)[0]
+        execution = re.findall(r'type="hidden" name="execution" value="(.*?)"', res_text)[0]
+        pwdDefaultEncryptSalt = re.findall(r'id="pwdEncryptSalt" value="(.*?)"', res_text)[0]
+        finger_headers  = {
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Pragma": "no-cache",
+            "Referer": "https://authserver.hhu.edu.cn/authserver/login",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "X-Requested-With": "XMLHttpRequest",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\""
+        }
+        finger_url  = "https://authserver.hhu.edu.cn/authserver/bfp/info"
+        bfp = generateFingerPrint()
+        # bfp = '8BE1C74B906D1C47C7E41C9F4486728F'
+        finger_params = {
+            "bfp": bfp,
+            "_": str(int(time.time() * 1000))
+        }
+        response = session.get(finger_url, headers=finger_headers, params=finger_params)
         headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "Accept-Language": "zh-CN,zh;q=0.9",
@@ -54,72 +89,137 @@ class HHUPCApis():
             "Content-Type": "application/x-www-form-urlencoded",
             "Origin": "https://authserver.hhu.edu.cn",
             "Pragma": "no-cache",
-            "Referer": "https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check",
+            "Referer": "https://authserver.hhu.edu.cn/authserver/login",
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "same-origin",
             "Sec-Fetch-User": "?1",
             "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0",
-            "sec-ch-ua": "\"Chromium\";v=\"128\", \"Not;A=Brand\";v=\"24\", \"Microsoft Edge\";v=\"128\"",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": "\"Windows\""
         }
         url = "https://authserver.hhu.edu.cn/authserver/login"
-        params = {
-            "service": "https://my.hhu.edu.cn/portal-web/j_spring_cas_security_check"
-        }
         pwdDefaultEncrypt = generatePCpwdDefaultEncrypt(password, pwdDefaultEncryptSalt)
         data = {
             "username": username,
             "password": pwdDefaultEncrypt,
-            "lt": lt,
-            "dllt": "userNamePasswordLogin",
-            "execution": "e2s1",
+            "captcha": "",
             "_eventId": "submit",
-            "rmShown": "1"
+            "cllt": "userNameLogin",
+            "dllt": "generalLogin",
+            "lt": "",
+            "execution": execution
         }
-        response = session.post(url, headers=headers, params=params, data=data, allow_redirects=False)
+        response = session.post(url, headers=headers, data=data, allow_redirects=False)
         redirectUrl = response.headers["Location"]
 
-        # 1
         headers = {
-            "Host": "my.hhu.edu.cn",
-            "Pragma": "no-cache",
-            "Cache-Control": "no-cache",
-            "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Sec-Fetch-Site": "same-site",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-User": "?1",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Pragma": "no-cache",
+            "Referer": "https://authserver.hhu.edu.cn/authserver/login",
             "Sec-Fetch-Dest": "document",
-            "sec-ch-ua": "\"Chromium\";v=\"128\", \"Not;A=Brand\";v=\"24\", \"Microsoft Edge\";v=\"128\"",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
             "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "Referer": "https://authserver.hhu.edu.cn/",
-            "Accept-Language": "zh-CN,zh;q=0.9"
+            "sec-ch-ua-platform": "\"Windows\""
         }
-
-        response = session.get(redirectUrl, headers=headers, params=params, allow_redirects=False)
+        response = session.get(redirectUrl, headers=headers, allow_redirects=False)
         redirectUrl = response.headers["Location"]
         headers = {
-            "Host": "my.hhu.edu.cn",
-            "Pragma": "no-cache",
-            "Cache-Control": "no-cache",
-            "Upgrade-Insecure-Requests": "1",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "sec-ch-ua": "\"Chromium\";v=\"128\", \"Not;A=Brand\";v=\"24\", \"Microsoft Edge\";v=\"128\"",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Pragma": "no-cache",
+            "Referer": "https://authserver.hhu.edu.cn/authserver/login",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
             "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
+            "sec-ch-ua-platform": "\"Windows\""
+        }
+        response = session.get(redirectUrl, headers=headers, allow_redirects=False)
+        redirectUrl = response.headers["Location"]
+
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Origin": "https://authserver.hhu.edu.cn",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\""
+        }
+        response = session.get(redirectUrl, headers=headers, verify=False, allow_redirects=False)
+        redirectUrl = response.headers["Location"]
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Pragma": "no-cache",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "cross-site",
-            "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\""
+        }
+        response = session.get(redirectUrl, headers=headers, allow_redirects=False)
+        redirectUrl = response.headers["Location"]
+        assert "authserver.hhu.edu.cn/personalInfo/personCenter/index.html" in redirectUrl, "重定向链接异常！"
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Pragma": "no-cache",
             "Sec-Fetch-Dest": "document",
-            "Accept-Language": "zh-CN,zh;q=0.9"
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\""
+        }
+        response = session.get(redirectUrl, headers=headers, allow_redirects=False)
+        redirectUrl = response.headers["Location"]
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Pragma": "no-cache",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "cross-site",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+            "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"Windows\""
         }
         response = session.get(redirectUrl, headers=headers)
+        #===
         headers = {
             "Host": "my.hhu.edu.cn",
             "Pragma": "no-cache",
@@ -416,7 +516,7 @@ class HHUPCApis():
 
 if __name__ == '__main__':
     username = '231607010123'
-    password = 'github.com/cv-cat'
+    password = 'github@cv-cat'
 
     hhuPCApis = HHUPCApis()
     session = hhuPCApis.getPCSession(username, password)
