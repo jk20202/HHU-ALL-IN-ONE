@@ -23,7 +23,7 @@
 ![image](https://github.com/user-attachments/assets/a1276a47-3ad7-41ed-85e0-038f1ae4fbf0)
 
 ### 心理测评一键过
-![image](https://github.com/user-attachments/assets/4601ec34-3353-4692-a2bd-5446499a0139)
+![image](./static/image.png)
 
 
 ## ⛳运行环境
