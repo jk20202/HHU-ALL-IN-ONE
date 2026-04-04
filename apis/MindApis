@@ -1,0 +1,348 @@
+'''
+Description:
+Date: 2026-04-04 11:38:03
+LastEditTime: 2026-04-04 14:00:09
+FilePath: \proj\hhu.py
+'''
+import base64
+import json
+import os
+import random
+import re
+import string
+import time
+
+import ddddocr
+import requests
+from loguru import logger
+from openai import OpenAI
+from PIL import Image, ImageDraw, ImageFont
+
+BASE_HEADERS = {
+    "accept-language":    "en",
+    "cache-control":      "no-cache",
+    "pragma":             "no-cache",
+    "sec-ch-ua":          '"Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"',
+    "sec-ch-ua-mobile":   "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "user-agent":         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+}
+
+LLM_API_KEY  = "sk-"
+LLM_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+LLM_MODEL    = "qwen-plus"
+
+SYSTEM_PROMPT = """你是一名心理健康状况良好、积极乐观的大学生，正在填写心理健康自评量表。
+对于每道题，请从给定选项中选出最能体现积极、乐观、心理健康状态的选项。
+只返回选项序号（如 1、2、3），不要任何解释或其他内容。"""
+
+USE_TIME = 0  
+def b64encode(s: str) -> str:
+    return base64.b64encode(s.encode()).decode()
+
+
+def strip_html(text: str) -> str:
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
+def generate_name_image(name: str, output_path: str = "output.png"):
+    windows_fonts = [
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\simsun.ttc",
+        r"C:\Windows\Fonts\simhei.ttf",
+        r"C:\Windows\Fonts\simkai.ttf",
+    ]
+
+    font = None
+    for path in windows_fonts:
+        if os.path.exists(path):
+            font = ImageFont.truetype(path, size=80)
+            break
+
+    if font is None:
+        raise RuntimeError("未找到中文字体，请确认系统为 Windows 且字体目录正常")
+
+    tmp  = Image.new("RGB", (1, 1))
+    bbox = ImageDraw.Draw(tmp).textbbox((0, 0), name, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+
+    padding = 40
+    img  = Image.new("RGB", (text_w + padding * 2, text_h + padding * 2), color="white")
+    draw = ImageDraw.Draw(img)
+    draw.text((padding - bbox[0], padding - bbox[1]), name, fill="black", font=font)
+    img.save(output_path)
+    logger.info(f"签名图片已保存: {output_path}")
+
+
+def login(login_name: str) -> requests.Session:
+    password = f"Hhu{login_name}@"
+    session  = requests.Session()
+    ocr      = ddddocr.DdddOcr()
+
+    session.get("https://hhu.psy-cloud.net/user/web-v2/", headers={
+        **BASE_HEADERS,
+        "accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "priority":                  "u=0, i",
+        "sec-fetch-dest":            "document",
+        "sec-fetch-mode":            "navigate",
+        "sec-fetch-site":            "none",
+        "sec-fetch-user":            "?1",
+        "upgrade-insecure-requests": "1",
+    })
+
+    for attempt in range(1, 4):
+        response = session.get(
+            "https://hhu.psy-cloud.net/user/api/user/ImgCode/get",
+            headers={
+                **BASE_HEADERS,
+                "accept":          "application/json, text/plain, */*",
+                "priority":        "u=1, i",
+                "referer":         "https://hhu.psy-cloud.net/user/web-v2/",
+                "sec-fetch-dest":  "empty",
+                "sec-fetch-mode":  "cors",
+                "sec-fetch-site":  "same-origin",
+                "token":           "",
+            },
+        )
+        code_key = response.json()["data"]["codeKey"]
+
+        response = session.get(
+            "https://hhu.psy-cloud.net/user/api/user/ImgCode/show",
+            headers={
+                **BASE_HEADERS,
+                "accept":         "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                "priority":       "i",
+                "referer":        "https://hhu.psy-cloud.net/user/web-v2/",
+                "sec-fetch-dest": "image",
+                "sec-fetch-mode": "no-cors",
+                "sec-fetch-site": "same-origin",
+            },
+            params={"codeKey": code_key},
+        )
+        answer = ocr.classification(response.content)
+        logger.info(f"第 {attempt} 次，验证码识别结果: {answer}")
+
+        data = {
+            "login_name":    (None, b64encode(login_name), None),
+            "password":      (None, b64encode(password),   None),
+            "imgVCode":      (None, answer,                 None),
+            "codeKey":       (None, code_key,               None),
+            "secretContent": (None, "",                     None),
+            "timestamp":     (None, "0",                    None),
+        }
+        response = session.post(
+            "https://hhu.psy-cloud.net/user/api/user/login",
+            headers={
+                **BASE_HEADERS,
+                "accept":         "application/json, text/plain, */*",
+                "origin":         "https://hhu.psy-cloud.net",
+                "priority":       "u=1, i",
+                "referer":        "https://hhu.psy-cloud.net/user/web-v2/",
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "same-origin",
+                "token":          "",
+            },
+            files=data,
+        )
+        result = response.json()
+
+        if result.get("code") == 0:
+            token = result["data"]["token"]
+            session.headers.update({"token": token, "authorization": f"Bearer {token}"})
+            logger.success(f"登录成功，token: {token}")
+            return session
+
+        logger.warning(f"登录失败（第 {attempt} 次）: {result.get('message')}，重新获取验证码...")
+
+    raise RuntimeError("登录失败，已达最大重试次数")
+
+
+def upload_signature(session: requests.Session, name: str):
+    random_str = "".join(random.choices(string.ascii_letters + string.digits, k=6))
+    img_path   = f"output_{random_str}.png"
+    token      = session.headers.get("token", "")
+
+    generate_name_image(name, output_path=img_path)
+
+    with open(img_path, "rb") as f:
+        response = session.post(
+            "https://hhu.psy-cloud.net/user/api/signature/create",
+            headers={
+                **BASE_HEADERS,
+                "accept":         "application/json, text/plain, */*",
+                "origin":         "https://hhu.psy-cloud.net",
+                "priority":       "u=1, i",
+                "referer":        "https://hhu.psy-cloud.net/user/web-v2/",
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "same-origin",
+                "token":          token,
+                "authorization":  f"Bearer {token}",
+            },
+            files={"file": ("file.png", f, "image/png")},
+        )
+
+    logger.info(f"上传签名结果: {response.text}")
+
+
+def _api_headers(session: requests.Session, extra: dict = None) -> dict:
+    token = session.headers.get("token", "")
+    headers = {
+        **BASE_HEADERS,
+        "accept":         "application/json, text/plain, */*",
+        "authorization":  f"Bearer {token}",
+        "priority":       "u=1, i",
+        "referer":        "https://hhu.psy-cloud.net/user/web-v2/",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "token;":         "",
+    }
+    if extra:
+        headers.update(extra)
+    return headers
+
+
+def fetch_question_list(session: requests.Session) -> list[dict]:
+    response = session.get(
+        "https://hhu.psy-cloud.net/user/api/Scale/AnswerScale",
+        headers=_api_headers(session),
+        params={"planid": "59", "scaleid": "2"},
+    )
+    response.raise_for_status()
+    return response.json()["data"]["questionList"]
+
+
+def submit_answers(session: requests.Session, answers: list[dict]) -> dict:
+    payload = json.dumps(
+        {"planId": 59, "scaleId": 2, "useTime": USE_TIME, "questionList": answers},
+        separators=(",", ":"),
+    )
+    response = session.post(
+        "https://hhu.psy-cloud.net/user/api/Scale/submit",
+        headers=_api_headers(session, {"content-type": "application/json;charset=UTF-8",
+                                       "origin": "https://hhu.psy-cloud.net"}),
+        data=payload,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+def get_final_report(session: requests.Session):
+    response = session.get(
+        "https://hhu.psy-cloud.net/user/api/scale/v1.1/plan/detail",
+        headers=_api_headers(session),
+        params={"id": "59"},
+    )
+    answered_dossier_id_set = response.json()["data"][0]["answeredDossierIdSet"]
+
+    response = session.get(
+        "https://hhu.psy-cloud.net/user/api/Scale/list/over/get",
+        headers=_api_headers(session),
+        params={"id": answered_dossier_id_set},
+    )
+    logger.info(f"报告结果: {response.text}")
+
+
+def build_user_prompt(question: str, options: list[dict]) -> str:
+    opts = "\n".join(f"{i+1}. {opt['optionContent']}" for i, opt in enumerate(options))
+    return f"题目：{question}\n\n选项：\n{opts}\n\n请只返回最乐观选项的序号："
+
+
+def ask_llm(client: OpenAI, question: str, options: list[dict]) -> dict:
+    response = client.chat.completions.create(
+        model=LLM_MODEL,
+        max_tokens=8,
+        temperature=0,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user",   "content": build_user_prompt(question, options)},
+        ],
+    )
+    raw   = response.choices[0].message.content.strip()
+    match = re.search(r"\d+", raw)
+    if match:
+        idx = int(match.group()) - 1
+        if 0 <= idx < len(options):
+            return options[idx]
+
+    logger.warning(f"模型返回无法解析（{raw!r}），默认选第 1 项")
+    return options[0]
+
+
+def flatten_questions(raw_list: list[dict]) -> list[dict]:
+    flat = []
+    for q in raw_list:
+        options = q.get("optionList") or []
+        content = strip_html(q.get("questionContent", ""))
+        if options:
+            flat.append({"questionId": q["questionId"], "questionContent": content, "optionList": options})
+        for child in q.get("childList") or []:
+            child_opts = child.get("optionList") or []
+            if child_opts:
+                flat.append({
+                    "questionId":      child["questionId"],
+                    "questionContent": strip_html(child.get("questionContent", "")),
+                    "optionList":      child_opts,
+                })
+    return flat
+
+
+def select_answers(client: OpenAI, questions: list[dict]) -> tuple[list[dict], list[dict]]:
+    answers, summaries = [], []
+    total = len(questions)
+
+    for i, q in enumerate(questions, 1):
+        qid     = q["questionId"]
+        content = q["questionContent"].replace("&lt;p&gt;", "").replace("&lt;/p&gt;", "")
+        options = q["optionList"]
+
+        logger.info(f"[{i}/{total}] Q{qid}: {content}")
+        logger.debug(f"选项: {', '.join(opt['optionContent'] for opt in options)}")
+
+        chosen = ask_llm(client, content, options)
+        logger.success(f"已选: {chosen['optionContent']}")
+
+        logger.info("=" * 150)
+        answers.append({"questionId": qid, "optionId": chosen["optionId"]})
+        summaries.append({"question": content, "chosen": chosen["optionContent"]})
+        time.sleep(0.2)
+
+    return answers, summaries
+
+
+def print_summary(summaries: list[dict]) -> None:
+    sep = "-" * 60
+    logger.info(f"\n{sep}\n答题汇总（共 {len(summaries)} 题）\n{sep}")
+    for item in summaries:
+        logger.info(f"题: {item['question'][:45]}")
+        logger.info(f"答: {item['chosen']}")
+
+
+def start_auto_fill(session: requests.Session):
+    client = OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+
+    logger.info("正在获取题目列表...")
+    raw_questions = fetch_question_list(session)
+    questions     = flatten_questions(raw_questions)
+    logger.info(f"共 {len(questions)} 道有效题目")
+
+    answers, summaries = select_answers(client, questions)
+
+    print_summary(summaries)
+
+    logger.info(f"正在提交 {len(answers)} 道题的答案...")
+    result = submit_answers(session, answers)
+    logger.success(f"提交结果:\n{json.dumps(result, ensure_ascii=False, indent=2)}")
+
+
+if __name__ == "__main__":
+    name    = "舒睿"
+    user_no = "231607010153"
+
+    session = login(user_no)
+    upload_signature(session, name)
+    start_auto_fill(session)
+    get_final_report(session)
